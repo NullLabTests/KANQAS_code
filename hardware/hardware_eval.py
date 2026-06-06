@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import torch
 from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
 from rich.console import Console
 from rich.table import Table
 from rich.logging import RichHandler
@@ -14,6 +15,7 @@ from rich.logging import RichHandler
 from chemistry.molecule import MolecularHamiltonian
 from hardware.ibm_runtime import IBMQuantumBackend
 from hardware.noise_aware_trainer import NoiseAwareTrainer
+from hardware.noisy_utils import noisy_expectation
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,10 +51,9 @@ class HardwareEvaluator:
 
     def _simulator_evaluation(self, circuit: QuantumCircuit) -> dict[str, Any]:
         noiseless_energy = self.molecule.estimate_energy(circuit, backend=None)
-        from qiskit_aer import AerSimulator
-
-        aer_sim = AerSimulator(method="automatic")
-        noisy_energy = self.molecule.estimate_energy(circuit, backend=aer_sim)
+        noisy_energy = noisy_expectation(
+            circuit, self.molecule.hamiltonian, range(self.molecule.num_qubits),
+        )
         return {
             "noiseless_energy": float(noiseless_energy),
             "noisy_sim_energy": float(noisy_energy),

@@ -8,12 +8,12 @@ from typing import Any
 import numpy as np
 import torch
 from qiskit import QuantumCircuit
-from qiskit_aer import AerSimulator
 from rich.logging import RichHandler
 
 from agents.KAQN import KAQN
 from chemistry.molecule import MolecularHamiltonian
 from chemistry.vqe_env import VQEEnv
+from hardware.noisy_utils import noisy_expectation
 from utils import dictionary_of_actions
 
 logging.basicConfig(
@@ -81,8 +81,8 @@ class NoiseAwareTrainer:
                 "agent_type": "KAQN",
                 "agent_class": "KAQN",
                 "angles": False,
-                "en_state": True,
-                "threshold_in_state": True,
+                "en_state": False,
+                "threshold_in_state": False,
                 "memory_size": 100000,
                 "batch_size": 64,
                 "learning_rate": 0.001,
@@ -113,15 +113,10 @@ class NoiseAwareTrainer:
         return noisy_value
 
     def _noisy_expectation(self, circuit: QuantumCircuit, shots: int = 4000) -> float:
-        if self.noisy_sim is None:
-            if self.real_device_backend:
-                self.noisy_sim = AerSimulator.from_backend(self.real_device_backend)
-            else:
-                self.noisy_sim = AerSimulator(method="automatic")
-        circ_copy = circuit.copy()
-        circ_copy.save_expectation_value(self.molecule.hamiltonian, range(self.num_qubits))
-        result = self.noisy_sim.run(circ_copy, shots=shots).result()
-        return float(result.data().get("expectation_value", 0.0))
+        return noisy_expectation(
+            circuit, self.molecule.hamiltonian, range(self.num_qubits),
+            backend=self.real_device_backend, shots=shots,
+        )
 
     def _prune_circuit(self, circuit: QuantumCircuit) -> QuantumCircuit:
         ops = circuit.count_ops()
