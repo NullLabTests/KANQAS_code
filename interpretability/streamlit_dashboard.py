@@ -55,11 +55,12 @@ def main():
         st.markdown("[KANQAS Paper](https://epjquantumtechnology.springeropen.com/articles/10.1140/epjqt/s40507-024-00289-z)")
         st.markdown("[GitHub Repo](https://github.com/Aqasch/KANQAS_code)")
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Energy Curves",
         "Circuit Visualization",
         "KAN Activations",
         "Gate Analysis",
+        "Hardware Results",
     ])
 
     with tab1:
@@ -94,25 +95,26 @@ def main():
 
     with tab2:
         st.header("Circuit Visualization")
-        if results and "final_circuit" in results:
+        circ = None
+        if results and "best_circuits" in results and len(results["best_circuits"]) > 0:
+            circ = results["best_circuits"][0]
+        elif results and "final_circuit" in results:
             circ = results["final_circuit"]
-            if isinstance(circ, QuantumCircuit):
-                fig, ax = circuit_drawer(circ, output="mpl", style=theme.lower())
-                st.pyplot(fig)
-                ops = circ.count_ops()
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Qubits", circ.num_qubits)
-                with col2:
-                    st.metric("Depth", circ.depth())
-                with col3:
-                    st.metric("Total Gates", sum(ops.values()))
-                with col4:
-                    st.metric("CNOT Gates", ops.get("cx", 0))
-            else:
-                st.error("Circuit object is not a QuantumCircuit instance")
+        if circ is not None and isinstance(circ, QuantumCircuit):
+            fig, ax = circuit_drawer(circ, output="mpl", style=theme.lower())
+            st.pyplot(fig)
+            ops = circ.count_ops()
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Qubits", circ.num_qubits)
+            with col2:
+                st.metric("Depth", circ.depth())
+            with col3:
+                st.metric("Total Gates", sum(ops.values()))
+            with col4:
+                st.metric("CNOT Gates", ops.get("cx", 0))
         else:
-            st.info("No circuit available. Run an experiment first.")
+            st.error("Circuit object is not a QuantumCircuit instance" if circ is not None else "No circuit available. Run an experiment first.")
 
     with tab3:
         st.header("KAN Activation Visualization")
@@ -138,19 +140,67 @@ def main():
         by the KAN-discovered circuit architecture. This reveals structural patterns 
         in the learned ansatz.
         """)
-        if results and "final_circuit" in results:
-            circ = results["final_circuit"]
-            if isinstance(circ, QuantumCircuit):
-                viz = KANVisualizer()
-                fig = viz.plot_gate_preference_heatmap(circ)
-                st.pyplot(fig)
-                with st.expander("Gate Count Details"):
-                    ops = circ.count_ops()
-                    st.json({str(k): int(v) for k, v in ops.items()})
-            else:
-                st.error("Circuit object is not a QuantumCircuit instance")
+        circ4 = None
+        if results and "best_circuits" in results and len(results["best_circuits"]) > 0:
+            circ4 = results["best_circuits"][0]
+        elif results and "final_circuit" in results:
+            circ4 = results["final_circuit"]
+        if circ4 is not None and isinstance(circ4, QuantumCircuit):
+            viz = KANVisualizer()
+            fig = viz.plot_gate_preference_heatmap(circ4)
+            st.pyplot(fig)
+            with st.expander("Gate Count Details"):
+                ops = circ4.count_ops()
+                st.json({str(k): int(v) for k, v in ops.items()})
         else:
             st.info("No circuit available for gate analysis.")
+
+    with tab5:
+        st.header("Hardware Evaluation Results")
+        st.markdown("Comparison of noise-aware training vs noiseless simulation vs exact diagonalization.")
+        hw_path = st.text_input(
+            "Hardware results path",
+            value="results/noise_aware/noise_aware_results.npy",
+            key="hw_path",
+        )
+        hw_results = load_results(hw_path)
+        if hw_results:
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Best Energy", f"{hw_results.get('best_energy', 0):.6f} Ha")
+            with col2:
+                st.metric("Exact GS", f"{hw_results.get('exact_energy', 0):.6f} Ha")
+            with col3:
+                bee = abs(hw_results.get('best_energy', 0) - hw_results.get('exact_energy', 0))
+                st.metric("Error", f"{bee:.6f} Ha")
+            with col4:
+                st.metric("Best CX", str(hw_results.get('best_cx', 0)))
+            if "energy_history" in hw_results:
+                st.subheader("Training History")
+                import matplotlib.pyplot as plt
+                fig2, ax2 = plt.subplots()
+                energies = hw_results["energy_history"]
+                ax2.plot(energies, label="Noisy Energy")
+                ax2.axhline(y=hw_results.get("exact_energy", 0), color="g", linestyle="--", label="Exact GS")
+                ax2.set_xlabel("Episode")
+                ax2.set_ylabel("Energy (Ha)")
+                ax2.legend()
+                ax2.set_title("Noise-Aware Training History")
+                st.pyplot(fig2)
+            if "best_circuit" in hw_results:
+                circ_hw = hw_results["best_circuit"]
+                if isinstance(circ_hw, QuantumCircuit):
+                    st.subheader("Best Circuit")
+                    fig_c, ax_c = circuit_drawer(circ_hw, output="mpl")
+                    st.pyplot(fig_c)
+        else:
+            st.info("No hardware evaluation results found. Run noise-aware training first.")
+            st.markdown("""
+            To generate hardware results:
+            ```bash
+            python -c "from chemistry.molecule import MolecularHamiltonian; from hardware.noise_aware_trainer import NoiseAwareTrainer; t=NoiseAwareTrainer(MolecularHamiltonian.h2()); t.train()"
+            ```
+            """)
 
     with st.expander("About KANQAS-NISQ"):
         st.markdown("""
