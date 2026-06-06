@@ -1,0 +1,26 @@
+INFO:qiskit.passmanager.base_tasks:Pass: UnrollCustomDefinitions - 8.21066 (ms)
+INFO:qiskit.passmanager.base_tasks:Pass: BasisTranslator - 0.04482 (ms)
+INFO:h2_vqe:Running H2 VQE with KAQN agent over 1 bond lengths
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:PySCF kernel() converged: True, e(hf): -0.7029435997235269
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Attempting 4-fold to 8-fold symmetric conversion.
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Using PySCF's conversion routine
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:HF Electronic dipole moment: [-0.         -0.         -4.72431531]
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:Nuclear dipole moment: [0.         0.         4.72431531]
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:Total dipole moment: [0. 0. 0.]
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Unfolding 8-fold to 1-fold symmetric integrals.
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Using PySCF's conversion routine
+INFO:h2_vqe:Bond 2.50A | Ep 0/1500 | E=-0.972756 | |E-Egs|=0.174969 | Best=-0.972756 | Eps=1.000
+INFO:h2_vqe:Bond 2.50A | Ep 50/1500 | E=-1.002205 | |E-Egs|=0.145521 | Best=-1.143310 | Eps=0.858
+INFO:h2_vqe:Bond 2.50A | Ep 100/1500 | E=-0.755270 | |E-Egs|=0.392456 | Best=-1.143310 | Eps=0.703
+INFO:h2_vqe:Bond 2.50A | Ep 150/1500 | E=-0.806076 | |E-Egs|=0.341650 | Best=-1.143310 | Eps=0.575
+INFO:h2_vqe:Bond 2.50A | Ep 200/1500 | E=-1.143310 | |E-Egs|=0.004416 | Best=-1.143310 | Eps=0.471
+INFO:h2_vqe:Bond 2.50A | Ep 250/1500 | E=-0.951337 | |E-Egs|=0.196388 | Best=-1.143310 | Eps=0.386
+INFO:h2_vqe:  Epsilon reset to 0.300 at episode 300
+INFO:h2_vqe:Bond 2.50A | Ep 300/1500 | E=-0.972756 | |E-Egs|=0.174969 | Best=-1.143310 | Eps=0.299
+INFO:h2_vqe:Bond 2.50A | Ep 350/1500 | E=-0.898689 | |E-Egs|=0.249037 | Best=-1.143310 | Eps=0.245
+INFO:h2_vqe:Bond 2.50A | Ep 400/1500 | E=-1.003986 | |E-Egs|=0.143740 | Best=-1.143310 | Eps=0.200
+INFO:h2_vqe:Bond 2.50A | Ep 450/1500 | E=-0.861100 | |E-Egs|=0.286626 | Best=-1.143310 | Eps=0.164
+INFO:h2_vqe:Bond 2.50A | Ep 500/1500 | E=-0.876690 | |E-Egs|=0.271036 | Best=-1.143310 | Eps=0.134
+INFO:h2_vqe:Bond 2.50A | Ep 550/1500 | E=-0.861100 | |E-Egs|=0.286626 | Best=-1.143310 | Eps=0.110
+INFO:h2_vqe:  Epsilon reset to 0.240 at episode 600
+INFO:h2_vqe:Bond 2.50A | Ep 600/1500 | E=-0.861100 | |E-Egs|=0.286626 | Best=-1.143310 | Eps=0.239

@@ -1,0 +1,11 @@
+INFO:qiskit.passmanager.base_tasks:Pass: UnrollCustomDefinitions - 0.19693 (ms)
+INFO:qiskit.passmanager.base_tasks:Pass: BasisTranslator - 0.03767 (ms)
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:PySCF kernel() converged: True, e(hf): -7.830905584637071
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Attempting 4-fold to 8-fold symmetric conversion.
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Using PySCF's conversion routine
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:HF Electronic dipole moment: [-0.         -0.         -5.74783686]
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:Nuclear dipole moment: [0.         0.         3.77945225]
+INFO:qiskit_nature.second_q.drivers.pyscfd.pyscfdriver:Total dipole moment: [ 0.          0.         -1.96838461]
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Unfolding 8-fold to 1-fold symmetric integrals.
+INFO:qiskit_nature.second_q.operators.symmetric_two_body:Using PySCF's conversion routine
+LiH R=2.00A | 12 qubits | Exact GS=-8.654854 Ha

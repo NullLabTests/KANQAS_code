@@ -45,6 +45,7 @@ class H2VQETrainer:
             "bond_lengths": [],
             "found_energies": [],
             "exact_energies": [],
+            "rl_energies": [],
             "gate_counts": [],
             "depths": [],
             "cnot_counts": [],
@@ -129,6 +130,19 @@ class H2VQETrainer:
                 new_circ.cx(q, qargs[1])
             else:
                 new_circ.append(instruction, qargs, cargs)
+        nq = circuit.num_qubits
+        hea_reps = min(2, max(1, nq // 2))
+        for _ in range(hea_reps):
+            for q in range(nq):
+                p = Parameter(f'θ{len(params)}')
+                params.append(p)
+                new_circ.ry(p, q)
+            for q in range(nq - 1):
+                new_circ.cx(q, q + 1)
+            for q in range(nq):
+                p = Parameter(f'θ{len(params)}')
+                params.append(p)
+                new_circ.rz(p, q)
         return new_circ, params
 
     def _post_optimize(
@@ -145,23 +159,25 @@ class H2VQETrainer:
 
         x0 = np.zeros(len(params))
         bounds = [(-np.pi, np.pi)] * len(params)
-        energies: list[float] = []
+        best_x = x0.copy()
+        best_e = float('inf')
 
         def objective(x: np.ndarray) -> float:
+            nonlocal best_x, best_e
             bound_circ = circ.assign_parameters({p: v for p, v in zip(params, x)})
             e = molecule.estimate_energy(bound_circ)
-            energies.append(e)
+            if e < best_e:
+                best_e = e
+                best_x = x.copy()
             return e
 
         logger.info(f"  Post-optimizing {len(params)} continuous parameters with COBYLA (max {max_iter} iters)...")
-        res = minimize(objective, x0, method='COBYLA', bounds=bounds,
-                       options={'maxiter': max_iter, 'rhobeg': 0.5, 'catol': 1e-6})
-        best_idx = int(np.argmin(energies))
-        x_best = res.x if res.fun <= energies[best_idx] else x0
+        from scipy.optimize import minimize
+        minimize(objective, x0, method='COBYLA', bounds=bounds,
+                 options={'maxiter': max_iter, 'rhobeg': 0.5, 'catol': 1e-6})
 
-        bound_circ = circ.assign_parameters({p: v for p, v in zip(params, x_best)})
-        best_e = min(energies)
-        logger.info(f"  Post-optimized energy: {best_e:.6f}")
+        bound_circ = circ.assign_parameters({p: v for p, v in zip(params, best_x)})
+        logger.info(f"  Post-optimized energy: {best_e:.6f} (from {len(params)} params)")
         return best_e, bound_circ
 
     def _train_one_bond(self, bond_length: float) -> dict[str, Any]:
@@ -266,6 +282,7 @@ class H2VQETrainer:
             "bond_lengths": "bond_length",
             "found_energies": "found_energy",
             "exact_energies": "exact_energy",
+            "rl_energies": "rl_energy",
             "gate_counts": None,
             "depths": None,
             "cnot_counts": None,

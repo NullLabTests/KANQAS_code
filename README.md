@@ -121,18 +121,20 @@ KANQAS-NISQ/
 
 ## Results
 
-### H₂ Energy Curve (4 qubits, STO-3G)
+### H₂ Energy Curve (4 qubits, STO-3G, HEA post-optimization)
 
-| Bond Length (Å) | KANQAS-Discrete (Ha) | Exact FCI (Ha) | Error (Ha) |
-|----------------|---------------------|----------------|------------|
-| 0.50           | -1.967628           | -2.113514      | 0.145886   |
-| 0.74           | -1.831864           | -1.852388      | 0.020525   |
-| 1.00           | -1.630328           | -1.630328      | 0.000000   |
-| 1.50           | -1.350934           | -1.350934      | 0.000000   |
-| 2.00           | -1.213230           | -1.213230      | 0.000000   |
-| 2.50           | -1.143309           | -1.147726      | 0.004416   |
+KANQAS-NISQ uses discrete RL gate search for circuit structure + continuous Hardware-Efficient Ansatz (Ry+CX+Rz) post-optimization for correlation:
 
-*Results from KAQN agent with 1500+ episodes, 10 layers, periodic epsilon reset. The discrete-gate action space reaches HF energy easily but requires continuous angle parameterization (angles=True) or classical post-optimization for chemical precision (< 0.0016 Ha).*
+| Bond Length (Å) | RL Energy (Ha) | Post-Opt E (Ha) | Exact FCI (Ha) | Error (Ha) | CX |
+|----------------|----------------|-----------------|----------------|------------|-----|
+| 0.50           | -2.101351      | -2.113514       | -2.113514      | **0.000000** | 11 |
+| 0.74           | -1.831864      | —               | -1.852388      | 0.020525 (running 1500 eps) | 2 |
+| 1.00           | -1.595286      | -1.630327       | -1.630328      | **0.000001** | 11 |
+| 1.50           | -1.263658      | —               | -1.350934      | 0.087276 (running 1500 eps) | 1 |
+| 2.00           | -1.189126      | -1.201182       | -1.213230      | 0.012048 (running 1500 eps) | 9 |
+| 2.50           | -1.143310      | —               | -1.147726      | 0.004416 (running 1500 eps) | 4 |
+
+*500 RL episodes + 600-iter COBYLA. Bold errors are below chemical precision (< 0.0016 Ha). Remaining 4 bond lengths running 1500 episodes each in parallel.*
 
 ### Noise-Aware Hardware Evaluation (FakeManilaV2)
 
