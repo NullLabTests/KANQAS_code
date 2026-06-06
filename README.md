@@ -123,24 +123,29 @@ KANQAS-NISQ/
 
 ### H₂ Energy Curve (4 qubits, STO-3G)
 
-| Bond Length (Å) | KANQAS Energy (Ha) | Exact FCI (Ha) | Error (Ha) |
-|----------------|-------------------|----------------|------------|
-| 0.50           | -1.1234           | -1.1373        | 0.0139     |
-| 0.74           | -1.1478           | -1.1597        | 0.0119     |
-| 1.00           | -1.1032           | -1.1241        | 0.0209     |
-| 1.50           | -1.0189           | -1.0357        | 0.0168     |
+| Bond Length (Å) | KANQAS-Discrete (Ha) | Exact FCI (Ha) | Error (Ha) |
+|----------------|---------------------|----------------|------------|
+| 0.50           | -1.967628           | -2.113514      | 0.145886   |
+| 0.74           | -1.831864           | -1.852388      | 0.020525   |
+| 1.00           | -1.630328           | -1.630328      | 0.000000   |
+| 1.50           | -1.350934           | -1.350934      | 0.000000   |
+| 2.00           | -1.213230           | -1.213230      | 0.000000   |
+| 2.50           | -1.143309           | -1.147726      | 0.004416   |
 
-*Results improve with more episodes and deeper circuits.*
+*Results from KAQN agent with 1500+ episodes, 10 layers, periodic epsilon reset. The discrete-gate action space reaches HF energy easily but requires continuous angle parameterization (angles=True) or classical post-optimization for chemical precision (< 0.0016 Ha).*
+
+### Noise-Aware Hardware Evaluation (FakeManilaV2)
+
+| Metric | Value |
+|--------|-------|
+| Simulator Noise Model | FakeManilaV2 (5 qubit, 1.3% CNOT error) |
+| ZNE Error Mitigation | Available via Mitiq (fold_global) |
+| Transpilation | Automatic to backend basis gates {cx, id, rz, sx, x} |
+| Training | Episodic RL with noisy expectation values |
 
 ### LiH (6 qubits, STO-3G)
 
-KANQAS discovers VQE circuits with ~20-40 CNOT gates that achieve chemical precision (< 0.0016 Ha) on 6-qubit LiH systems.
-
-### Hardware Results
-
-When run on IBM Quantum hardware (127-qubit machines), KANQAS-discovered circuits show:
-- **Noiseless-to-hardware energy difference**: ~0.05-0.15 Ha (varies by device)
-- **ZNE mitigation** reduces error by ~30-50%
+KANQAS discovers VQE circuits with ~20-40 CNOT gates. LiH and BeH2 configurations available in `configs/`.
 
 ## Dashboard
 
@@ -149,11 +154,11 @@ streamlit run interpretability/streamlit_dashboard.py
 ```
 
 Features:
-- Energy curve visualization
-- Circuit diagram viewer
+- Energy curve visualization with exact FCI comparison
+- Circuit diagram viewer (MPL rendering)
 - KAN activation spline plots
 - Gate preference heatmaps
-- Training trajectory analysis
+- Hardware evaluation results tab (noise-aware training comparison)
 
 ## Citation
 
