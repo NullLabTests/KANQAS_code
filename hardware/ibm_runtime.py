@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from rich.logging import RichHandler
@@ -144,3 +145,63 @@ class IBMQuantumBackend:
         qubit_factor = num_qubits / 10
         shot_factor = shots / 4000
         return base_cost * depth_factor * qubit_factor * shot_factor
+
+
+def get_backend(
+    mode: str = "fake",
+    name: str | None = None,
+    num_qubits: int = 4,
+    token: str | None = None,
+    instance: str | None = None,
+) -> Any:
+    """Return a backend for the given mode.
+
+    Args:
+        mode: 'fake' for a simulated backend (FakeBrisbane default), 'real' for a real IBM Quantum device.
+        name: Optional backend name. For 'fake' mode, one of 'Brisbane', 'Kyoto', 'ManilaV2'.
+              For 'real' mode, the name of an IBM Quantum backend.
+        num_qubits: Minimum number of qubits required.
+        token: IBM Quantum API token (required for 'real' mode).
+        instance: IBM Cloud instance (optional).
+
+    Returns:
+        A Qiskit backend object, or None if unavailable.
+    """
+    if mode == "fake":
+        from qiskit_ibm_runtime.fake_provider import FakeBrisbane, FakeKyoto, FakeManilaV2
+        mapping = {
+            "brisbane": FakeBrisbane,
+            "kyoto": FakeKyoto,
+            "manilav2": FakeManilaV2,
+            None: FakeBrisbane,
+        }
+        cls = mapping.get(name.lower() if name else None, FakeBrisbane)
+        logger.info(f"Using fake backend: {cls.__name__}")
+        return cls()
+    elif mode == "real":
+        if not token and not os.environ.get("IBM_QUANTUM_TOKEN"):
+            logger.error("No IBM Quantum token available for real backend mode")
+            return None
+        if not _HAS_IBM_RUNTIME:
+            logger.error("qiskit-ibm-runtime not installed")
+            return None
+        token = token or os.environ.get("IBM_QUANTUM_TOKEN")
+        try:
+            service = QiskitRuntimeService(channel="ibm_quantum", token=token, instance=instance)
+            backends = service.backends(
+                min_num_qubits=num_qubits,
+                operational=True,
+                simulator=False,
+            )
+            if name:
+                matches = [b for b in backends if b.name == name]
+                if not matches:
+                    logger.warning(f"Backend {name} not found; using first available")
+                    return backends[0] if backends else None
+                return matches[0]
+            return backends[0] if backends else None
+        except Exception as e:
+            logger.error(f"Failed to get real backend: {e}")
+            return None
+    else:
+        raise ValueError(f"Unknown backend mode: {mode}. Use 'fake' or 'real'.")

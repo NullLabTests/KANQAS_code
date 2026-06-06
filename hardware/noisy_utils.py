@@ -6,6 +6,7 @@ import numpy as np
 from qiskit import QuantumCircuit, transpile
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer import AerSimulator
+from qiskit_aer.noise import NoiseModel
 
 
 def noisy_expectation(
@@ -15,9 +16,11 @@ def noisy_expectation(
     backend: Any | None = None,
     shots: int = 4000,
 ) -> float:
+    nq = circuit.num_qubits
     if backend is not None:
-        sim = AerSimulator.from_backend(backend)
-        circ = transpile(circuit, backend=backend)
+        nm = NoiseModel.from_backend(backend)
+        sim = AerSimulator(noise_model=nm, method="automatic")
+        circ = transpile(circuit, basis_gates=nm.basis_gates)
     else:
         sim = AerSimulator(method="automatic")
         circ = circuit.copy()

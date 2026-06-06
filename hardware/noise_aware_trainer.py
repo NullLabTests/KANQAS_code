@@ -37,6 +37,8 @@ class NoiseAwareTrainer:
         self,
         molecule: MolecularHamiltonian,
         real_device_backend: Any | None = None,
+        backend_mode: str = "fake",
+        backend_name: str | None = "Brisbane",
         num_qubits: int = 4,
         device: torch.device = torch.device("cpu"),
         output_dir: str = "results/noise_aware",
@@ -44,6 +46,8 @@ class NoiseAwareTrainer:
     ):
         self.molecule = molecule
         self.real_device_backend = real_device_backend
+        self.backend_mode = backend_mode
+        self.backend_name = backend_name
         self.num_qubits = num_qubits
         self.device = device
         self.output_dir = Path(output_dir)
@@ -54,6 +58,10 @@ class NoiseAwareTrainer:
         self.energy_history: list[float] = []
         self.cx_history: list[int] = []
         self.depth_history: list[int] = []
+
+        if real_device_backend is None and backend_mode == "fake":
+            from hardware.ibm_runtime import get_backend
+            self.real_device_backend = get_backend(mode="fake", name=backend_name)
 
     def _default_config(self) -> dict[str, Any]:
         return {

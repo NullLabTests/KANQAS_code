@@ -39,20 +39,28 @@ class HardwareEvaluator:
         molecule: MolecularHamiltonian,
         ibm_token: str | None = None,
         instance: str | None = None,
+        backend_mode: str = "fake",
+        backend_name: str | None = "Brisbane",
         output_dir: str = "results/hardware_eval",
     ):
         self.molecule = molecule
         self.ibm_token = ibm_token
         self.instance = instance
+        self.backend_mode = backend_mode
+        self.backend_name = backend_name
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.ibm_backend = IBMQuantumBackend(token=ibm_token, instance=instance)
-        self.backend_name: str = ""
+        self.backend: Any = None
+        if backend_mode == "fake":
+            from hardware.ibm_runtime import get_backend
+            self.backend = get_backend(mode="fake", name=backend_name)
 
     def _simulator_evaluation(self, circuit: QuantumCircuit) -> dict[str, Any]:
         noiseless_energy = self.molecule.estimate_energy(circuit, backend=None)
         noisy_energy = noisy_expectation(
             circuit, self.molecule.hamiltonian, range(self.molecule.num_qubits),
+            backend=self.backend,
         )
         return {
             "noiseless_energy": float(noiseless_energy),
