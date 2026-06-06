@@ -125,16 +125,18 @@ KANQAS-NISQ/
 
 KANQAS-NISQ uses discrete RL gate search for circuit structure + continuous Hardware-Efficient Ansatz (Ry+CX+Rz) post-optimization for correlation:
 
-| Bond Length (Å) | RL Energy (Ha) | Post-Opt E (Ha) | Exact FCI (Ha) | Error (Ha) | CX |
-|----------------|----------------|-----------------|----------------|------------|-----|
-| 0.50           | -2.101351      | -2.113514       | -2.113514      | **0.000000** | 11 |
-| 0.74           | -1.831864      | —               | -1.852388      | 0.020525 (running 1500 eps) | 2 |
-| 1.00           | -1.595286      | -1.630327       | -1.630328      | **0.000001** | 11 |
-| 1.50           | -1.263658      | —               | -1.350934      | 0.087276 (running 1500 eps) | 1 |
-| 2.00           | -1.189126      | -1.201182       | -1.213230      | 0.012048 (running 1500 eps) | 9 |
-| 2.50           | -1.143310      | —               | -1.147726      | 0.004416 (running 1500 eps) | 4 |
+| Bond Length (Å) | RL Energy (Ha) | Post-Opt E (Ha) | Exact FCI (Ha) | Error (Ha) | CX | Depth | Chemical Precision |
+|----------------|----------------|-----------------|----------------|------------|-----|-------|-------------------|
+| 0.50           | -2.101351      | -2.113514       | -2.113514      | **0.000000** | 11 | 14 | ✅ |
+| 0.74           | -1.831864      | -1.852388       | -1.852388      | **0.000000** | 17 | 23 | ✅ |
+| 1.00           | -1.595286      | -1.630327       | -1.630328      | **0.000001** | 11 | 15 | ✅ |
+| 1.50           | -1.263658      | —               | -1.350934      | 0.087276 (running 2000 eps v2) | — | — | — |
+| 2.00           | -1.189126      | -1.213228       | -1.213230      | **0.000002** | 13 | 19 | ✅ |
+| 2.50           | -1.143310      | —               | -1.147726      | 0.004416 (running 2000 eps v2) | — | — | — |
 
-*500 RL episodes + 600-iter COBYLA. Bold errors are below chemical precision (< 0.0016 Ha). Remaining 4 bond lengths running 1500 episodes each in parallel.*
+*500-1500 RL episodes + 600-iter COBYLA. Bold errors are below chemical precision (< 0.0016 Ha). 4/6 bond lengths achieved. R=1.50 and R=2.50 running with 2000 episodes + 30 layers.*
+
+### Noise-Aware Hardware Evaluation (FakeBrisbane)
 
 ### Noise-Aware Hardware Evaluation (FakeManilaV2)
 
