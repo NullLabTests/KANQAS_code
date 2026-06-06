@@ -84,7 +84,7 @@ class H2VQETrainer:
                 "learning_rate": 0.0005,
                 "final_gamma": 0.99,
                 "epsilon_min": 0.01,
-                "epsilon_decay": 0.998,
+                "epsilon_decay": 0.9995,
                 "update_target_net": 20,
                 "dropout": 0.1,
                 "neurons": [128, 64],
@@ -118,7 +118,11 @@ class H2VQETrainer:
         error_history: list[float] = []
         best_episode = 0
 
+        epsilon_reset_interval = 300
         for ep in range(episodes):
+            if ep > 0 and ep % epsilon_reset_interval == 0:
+                agent.epsilon = min(agent.epsilon + 0.15, 0.3)
+                logger.info(f"  Epsilon reset to {agent.epsilon:.3f} at episode {ep}")
             state = env.reset()
             episode_energy = float("inf")
             for step in range(env.num_layers + 1):
