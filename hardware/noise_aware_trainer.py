@@ -132,6 +132,8 @@ class NoiseAwareTrainer:
         agent = KAQN(self.config, env.action_size, env.state_size, self.device)
         translate = dictionary_of_actions(self.num_qubits)
         episodes = conf["general"]["episodes"]
+        best_energy = float("inf")
+        best_circuit = None
         for ep in range(episodes):
             state = env.reset()
             for step in range(env.num_layers + 1):
@@ -157,22 +159,22 @@ class NoiseAwareTrainer:
             self.energy_history.append(noise_energy)
             self.cx_history.append(circ.count_ops().get("cx", 0))
             self.depth_history.append(circ.depth())
+            if noise_energy < best_energy:
+                best_energy = noise_energy
+                best_circuit = circ.copy()
             if ep % 10 == 0:
                 logger.info(
                     f"Ep {ep}/{episodes} | Noisy E={noise_energy:.6f} | "
-                    f"CX={circ.count_ops().get('cx', 0)} | Depth={circ.depth()}"
+                    f"Best={best_energy:.6f} | CX={circ.count_ops().get('cx', 0)} | Depth={circ.depth()}"
                 )
-        best_idx = int(np.argmin(self.energy_history))
-        best_circuit = env.make_circuit()
-        best_circuit = self._prune_circuit(best_circuit)
         result = {
             "energy_history": self.energy_history,
             "cx_history": self.cx_history,
             "depth_history": self.depth_history,
-            "best_energy": float(np.min(self.energy_history)),
+            "best_energy": float(best_energy),
             "best_circuit": best_circuit,
-            "best_cx": best_circuit.count_ops().get("cx", 0),
-            "best_depth": best_circuit.depth(),
+            "best_cx": best_circuit.count_ops().get("cx", 0) if best_circuit else 0,
+            "best_depth": best_circuit.depth() if best_circuit else 0,
             "exact_energy": self.molecule.exact_diagonalization(),
             "final_circuit": env.make_circuit(),
         }

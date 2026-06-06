@@ -54,3 +54,4 @@ tabulate>=0.9.0
 
 # Hardware optimization
 mitiq>=0.40.0  # error mitigation (ZNE/PEC)
+ply>=3.11  # mitiq/cirq dependency
