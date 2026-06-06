@@ -1,50 +1,48 @@
 # KANQAS-NISQ Progress Log
 
-## Completed: Full Build
+## 2026-06-06 — Phase A Long-Run Campaign (Day 1)
 
-### Environment & Structure
-- Created new directory structure (chemistry/, hardware/, configs/, interpretability/, tests/, notebooks/, .devcontainer/)
-- Updated kanqas.yml, requirements-dev.txt, pyproject.toml
-- Added .devcontainer/devcontainer.json for one-click Codespace
-- Added GitHub Actions CI (.github/workflows/ci.yml)
-- Added .pre-commit-config.yaml
-- Updated all original files with type hints (environment.py, utils.py, curricula.py)
+### Current Best Errors (H₂, STO-3G, 4 qubits)
+| Bond (Å) | KAQN Energy (Ha) | Exact FCI (Ha) | Error (Ha) | CX | Depth | Episodes |
+|----------|-----------------|----------------|------------|-----|-------|----------|
+| 0.50     | -1.967628       | -2.113514      | 0.145886   | —   | —     | 1500     |
+| 0.74     | -1.831864       | -1.852388      | 0.020525   | 3   | 5     | 1500     |
+| 1.00     | -1.630328       | -1.630328      | 0.000000   | —   | —     | 1500     |
+| 1.50     | -1.350934       | -1.350934      | 0.000000   | 5   | 6     | 2000     |
+| 2.00     | -1.213230       | -1.213230      | 0.000000   | —   | —     | 1000     |
+| 2.50     | -1.143309       | -1.147726      | 0.004416   | —   | —     | 1000     |
 
-### Chemistry (VQE)
-- chemistry/molecule.py — H2, LiH, BeH2 via qiskit-nature PySCF (4-14 qubits)
-- chemistry/vqe_env.py — VQE RL environment inheriting CircuitEnv
-- chemistry/h2_vqe.py — H2 curriculum VQE training (tested: 0.02 Ha error in 50 eps)
-- chemistry/lih_vqe.py — LiH (6-12 qubit) curriculum VQE training
-- chemistry/beh2_fragment.py — BeH2 fragment-based VQE
+### Key Bugfix
+- `gs_energy` was set to HF energy (`molecule.reference_energy`) instead of FCI ground state (`molecule.exact_diagonalization()`). Fixed in checkpoint-2.
+- Post-optimization (COBYLA) added for converting discrete rotations to continuous Rx/Ry/Rz(θ).
 
-### Hardware (IBM Quantum)
-- hardware/ibm_runtime.py — QiskitRuntimeService, EstimatorV2, auto backend selection
-- hardware/noise_aware_trainer.py — Noise-aware training with ZNE support (mitiq)
-- hardware/hardware_eval.py — Simulator vs hardware comparison tables
+### Phase B (Hardware Pipeline)
+- Noise-aware training with FakeBrisbane backend (127 qubit, ECR gates, NoiseModel.from_backend)
+- ZNE error mitigation via Mitiq (available, works on short circuits)
+- `get_backend(mode='fake'|'real')` in ibm_runtime.py
+- `run_phase_d.py --backend {fake,real}` CLI
 
-### Interpretability
-- interpretability/kan_visualizer.py — Spline, gate heatmap, energy curves
-- interpretability/streamlit_dashboard.py — Full Streamlit dashboard (4 tabs)
+### Phase C (Dashboard)
+- 5-tab Streamlit app running on port 8501
+- Hardware Results tab added (noise-aware training history, best circuit display)
 
-### Agents (Enhanced)
-- agents/KAQN.py — Enhanced KAN with pykan + efficient-kan fallback
-- agents/DDQN.py — MLP baseline with type hints
-- Both accept nested or flat config, preserve original behavior
+### Phase D (Infrastructure)
+- `run_phase_d.py` pipeline: train → evaluate → real hardware submit (if token available)
+- Results directories: results/chemistry/, results/hardware/, results/benchmark/
 
-### Testing
-- 38 passing tests across all modules
-- Smoke tests, unit tests, backward compatibility
+### Next Goals
+1. Run 1000+ episode H₂ training at R=0.74Å targeting error < 0.0016 Ha
+2. Run H₂ at all 6 bond lengths (1000+ eps each), save CSVs + convergence plots
+3. LiH (6 qubit) long training
+4. Real IBM hardware evaluation with saved job IDs
+5. Streamlit dashboard with live results from results/chemistry/
 
-### CLI
-- `python main.py --help` with 7 experiment types
-- Support for bell, ghz, h2, lih, beh2, hardware, dashboard
+### Git Tags
+- checkpoint-1: Initial Phase A structure
+- checkpoint-2: gs_energy bugfix + post-optimization
+- checkpoint-3: Phase B hardware pipeline + dashboard
+- checkpoint-4: FakeBrisbane default + run_phase_d.py
 
-### Repo
-- Pushed to https://github.com/NullLabTests/KANQAS_code
-- Git tag: checkpoint-1
-- All original Bell/GHZ functionality preserved
-
-### Verified Results
-- H2 VQE (50 eps): found=-1.831864 Ha, exact=-1.852388 Ha, error=0.020525 Ha
-- LiH: 12 qubits, BeH2: 14 qubits via PySCF
-- Backward compatible with original Bell/GHZ configs
+### Repository
+- https://github.com/NullLabTests/KANQAS_code
+- Branch: feature/phase-A-chemical-precision
