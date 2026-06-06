@@ -13,7 +13,6 @@ from agents.DDQN import DDQN
 from agents.KAQN import KAQN
 from chemistry.molecule import MolecularHamiltonian
 from chemistry.vqe_env import VQEEnv
-from curricula import MovingThreshold
 from utils import dictionary_of_actions
 
 logging.basicConfig(
@@ -40,29 +39,32 @@ class H2VQETrainer:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.config = config or self._default_config()
-        self.results: dict[str, list[float]] = {
+        self.results: dict[str, Any] = {
             "bond_lengths": [],
             "found_energies": [],
             "exact_energies": [],
             "gate_counts": [],
             "depths": [],
-            "params": [],
+            "cnot_counts": [],
+            "best_circuits": [],
+            "energy_histories": [],
+            "error_histories": [],
         }
 
     def _default_config(self) -> dict[str, Any]:
         return {
-            "general": {"episodes": 200},
+            "general": {"episodes": 500},
             "env": {
-                "num_layers": 6,
+                "num_layers": 8,
                 "fn_type": "fidelty_reward",
                 "curriculum_type": "MovingThreshold",
-                "accept_err": 0.05,
-                "shift_threshold_ball": 0.02,
-                "shift_threshold_time": 20,
-                "success_thresh": 5,
-                "succ_radius_shift": 10,
-                "succes_switch": 1.0,
-                "depth_penalty": 0.01,
+                "accept_err": 1.5,
+                "shift_threshold_ball": 0.1,
+                "shift_threshold_time": 10,
+                "success_thresh": 3,
+                "succ_radius_shift": 5,
+                "succes_switch": 3.0,
+                "depth_penalty": 0.005,
                 "gate_penalty": 0.001,
             },
             "problem": {
@@ -77,20 +79,20 @@ class H2VQETrainer:
                 "angles": False,
                 "en_state": False,
                 "threshold_in_state": False,
-                "memory_size": 100000,
-                "batch_size": 64,
-                "learning_rate": 0.001,
+                "memory_size": 200000,
+                "batch_size": 128,
+                "learning_rate": 0.0005,
                 "final_gamma": 0.99,
                 "epsilon_min": 0.01,
-                "epsilon_decay": 0.995,
-                "update_target_net": 10,
+                "epsilon_decay": 0.998,
+                "update_target_net": 20,
                 "dropout": 0.1,
-                "neurons": [64, 32],
+                "neurons": [128, 64],
                 "kan_seed": 42,
                 "k": 3,
                 "grid": 5,
-                "memory_reset_switch": 10,
-                "memory_reset_threshold": 0.01,
+                "memory_reset_switch": 25,
+                "memory_reset_threshold": 0.05,
             },
         }
 
@@ -101,17 +103,24 @@ class H2VQETrainer:
 
     def _train_one_bond(self, bond_length: float) -> dict[str, Any]:
         molecule = MolecularHamiltonian.h2(bond_length=bond_length)
+        exact_e = molecule.exact_diagonalization()
+
         env_conf = copy.deepcopy(self.config)
         env_conf["env"]["num_qubits"] = molecule.num_qubits
-        env_conf["env"]["curriculum_type"] = "MovingThreshold"
-        env_conf["env"]["accept_err"] = 0.05
         env = VQEEnv(env_conf, molecule, self.device)
         agent = self._make_agent(env)
         translate = dictionary_of_actions(molecule.num_qubits)
 
         episodes = self.config["general"]["episodes"]
+        best_energy = float("inf")
+        best_circuit = None
+        energy_history: list[float] = []
+        error_history: list[float] = []
+        best_episode = 0
+
         for ep in range(episodes):
             state = env.reset()
+            episode_energy = float("inf")
             for step in range(env.num_layers + 1):
                 ill_actions = env.update_illegal_actions()
                 action_idx, _ = agent.act(state, ill_actions)
@@ -125,42 +134,77 @@ class H2VQETrainer:
                     torch.tensor(done, device=self.device),
                 )
                 state = next_state
+                episode_energy = min(episode_energy, float(env.energy))
                 batch_size = self.config["agent"]["batch_size"]
                 if len(agent.memory) > batch_size:
                     agent.replay(batch_size)
                 if done:
                     break
-            if ep % 20 == 0:
-                logger.info(f"Bond {bond_length:.2f}A | Ep {ep}/{episodes} | Energy: {env.energy:.6f} | Error: {env.error:.6f}")
 
-        circ = env.make_circuit()
+            energy_history.append(episode_energy)
+            error = abs(episode_energy - exact_e)
+            error_history.append(error)
+
+            if episode_energy < best_energy:
+                best_energy = episode_energy
+                best_circuit = env.make_circuit()
+                best_episode = ep
+
+            if ep % 50 == 0:
+                logger.info(
+                    f"Bond {bond_length:.2f}A | Ep {ep}/{episodes} | "
+                    f"E={episode_energy:.6f} | |E-Egs|={error:.6f} | "
+                    f"Best={best_energy:.6f} | Eps={agent.epsilon:.3f}"
+                )
+
+            if error < 0.0016:
+                logger.info(f"Chemical precision reached at episode {ep}!")
+                break
+
+        circ = best_circuit or env.make_circuit()
         gate_counts = circ.count_ops()
-        exact_e = molecule.exact_diagonalization()
+        logger.info(
+            f"Bond {bond_length:.2f}A complete | Best E={best_energy:.6f} | "
+            f"Exact GS={exact_e:.6f} | Error={abs(best_energy - exact_e):.6f} | "
+            f"CX={gate_counts.get('cx', 0)} | Depth={circ.depth()}"
+        )
         return {
             "bond_length": bond_length,
-            "found_energy": float(env.energy),
+            "found_energy": float(best_energy),
             "exact_energy": exact_e,
             "gate_counts": gate_counts,
             "depth": circ.depth(),
             "circuit": circ,
-            "error": float(env.error),
+            "error": float(abs(best_energy - exact_e)),
+            "energy_history": energy_history,
+            "error_history": error_history,
+            "best_episode": best_episode,
         }
 
     def run(self) -> dict[str, Any]:
-        logger.info(f"Running H2 VQE with {self.agent_type} agent")
+        logger.info(f"Running H2 VQE with {self.agent_type} agent over {len(self.bond_lengths)} bond lengths")
         for bond in self.bond_lengths:
             result = self._train_one_bond(bond)
-            self.results["bond_lengths"].append(bond)
-            self.results["found_energies"].append(result["found_energy"])
-            self.results["exact_energies"].append(result["exact_energy"])
-            self.results["gate_counts"].append(sum(result["gate_counts"].values()))
-            self.results["depths"].append(result["depth"])
-            self.results["params"].append(result["gate_counts"].get("cx", 0))
-            logger.info(
-                f"Result: bond={bond:.2f}A E_found={result['found_energy']:.6f} "
-                f"E_exact={result['exact_energy']:.6f} error={result['error']:.6f}"
-            )
-        np.save(self.output_dir / "h2_vqe_results.npy", self.results)
+            for key in ("bond_lengths", "found_energies", "exact_energies",
+                        "gate_counts", "depths", "cnot_counts", "best_circuits",
+                        "energy_histories", "error_histories"):
+                singular = key.rstrip("s")
+                if key == "gate_counts":
+                    val = sum(result.get("gate_counts", {}).values())
+                elif key == "cnot_counts":
+                    val = result.get("gate_counts", {}).get("cx", 0)
+                elif key == "depths":
+                    val = result.get("depth", 0)
+                elif key == "best_circuits":
+                    val = result.get("circuit")
+                elif key == "energy_histories":
+                    val = result.get("energy_history", [])
+                elif key == "error_histories":
+                    val = result.get("error_history", [])
+                else:
+                    val = result.get(singular, 0)
+                self.results[key].append(val)
+        np.save(self.output_dir / "h2_vqe_results.npy", self.results, allow_pickle=True)
         logger.info(f"Results saved to {self.output_dir / 'h2_vqe_results.npy'}")
         return self.results
 
