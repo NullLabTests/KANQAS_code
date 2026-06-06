@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Results
+results/
+!results/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Jupyter
+*.ipynb~
+
+# Qiskit
+*.qpy
+
+# IBM Quantum
+ibm_quantum_credentials.json
+qiskit-ibm.json
+
+# MLflow
+mlruns/
+
+# WandB
+wandb/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+.coverage.*

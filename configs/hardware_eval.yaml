@@ -1,0 +1,21 @@
+molecule:
+  name: h2
+  bond_length: 0.74
+  mapping: jordan_wigner
+  basis: sto-3g
+
+hardware:
+  instance: ibm-q/open/main
+  max_qubits: 127
+  min_qubits: 4
+  shots: 4000
+  run_on_hardware: false
+
+training:
+  episodes: 200
+  max_cx_gates: 100
+
+evaluation:
+  compare_circuits: true
+  save_results: true
+  output_dir: results/hardware_eval

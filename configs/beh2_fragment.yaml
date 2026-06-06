@@ -1,0 +1,41 @@
+general:
+  episodes: 200
+
+env:
+  num_qubits: 4
+  num_layers: 6
+  fn_type: fidelty_reward
+  curriculum_type: MovingThreshold
+  accept_err: 0.05
+  shift_threshold_ball: 0.02
+  shift_threshold_time: 20
+  success_thresh: 5
+  succ_radius_shift: 10
+  succes_switch: 1.0
+  depth_penalty: 0.01
+  gate_penalty: 0.001
+
+problem:
+  type: beh2_fragment
+  noise: 0
+  noise_prob_1q: 0.001
+  noise_prob_2q: 0.01
+
+agent:
+  agent_type: KAQN
+  agent_class: KAQN
+  angles: false
+  en_state: true
+  threshold_in_state: true
+  memory_size: 100000
+  batch_size: 64
+  learning_rate: 0.001
+  final_gamma: 0.99
+  epsilon_min: 0.01
+  epsilon_decay: 0.995
+  update_target_net: 10
+  dropout: 0.1
+  neurons: [64, 32]
+  kan_seed: 42
+  k: 3
+  grid: 5

@@ -1,93 +1,134 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-@author: Akash 24/6/2024
-"""
+from __future__ import annotations
 
-import torch.nn as nn
-import random
-import torch
 import copy
-from kan import KAN
+import random
 from collections import namedtuple
+from typing import Any
+
 import numpy as np
+import torch
+import torch.nn as nn
+
 from utils import dictionary_of_actions, dict_of_actions_revert_q
 
+try:
+    from kan import KAN
 
-class KAQN(object):
+    _HAS_PYKAN = True
+except ImportError:
+    try:
+        from efficient_kan import KAN
 
-    def __init__(self, conf, action_size, state_size, device):
-        self.num_qubits = conf['env']['num_qubits']
-        self.num_layers = conf['env']['num_layers']
-        memory_size = conf['agent']['memory_size']
-        self.kan_seed = conf['agent']['kan_seed']
-        self.k = conf['agent']['k']
-        self.grid = conf['agent']['grid']
-        
-        self.final_gamma = conf['agent']['final_gamma']
-        self.epsilon_min = conf['agent']['epsilon_min']
-        self.epsilon_decay = conf['agent']['epsilon_decay']
-        learning_rate = conf['agent']['learning_rate']
-        self.update_target_net = conf['agent']['update_target_net']
-        neuron_list = conf['agent']['neurons']
-        self.with_angles = conf['agent']['angles']
-        
-        if "memory_reset_switch" in conf['agent'].keys():
-            self.memory_reset_switch =  conf['agent']["memory_reset_switch"]
-            self.memory_reset_threshold = conf['agent']["memory_reset_threshold"]
-            self.memory_reset_counter = 0
-        else:
-            self.memory_reset_switch =  False
-            self.memory_reset_threshold = False
-            self.memory_reset_counter = False
+        _HAS_PYKAN = True
+    except ImportError:
+        _HAS_PYKAN = False
+
+
+class KAQN:
+    def __init__(
+        self,
+        conf: dict[str, Any],
+        action_size: int,
+        state_size: int,
+        device: torch.device,
+    ):
+        env_cfg = conf.get("env", conf)
+        agent_cfg = conf.get("agent", conf)
+        self.num_qubits = env_cfg.get("num_qubits", conf.get("num_qubits", 2))
+        self.num_layers = env_cfg.get("num_layers", conf.get("num_layers", 6))
+        self.memory_size = agent_cfg.get("memory_size", conf.get("memory_size", 10000))
+        self.kan_seed = agent_cfg.get("kan_seed", conf.get("kan_seed", 42))
+        self.k = agent_cfg.get("k", conf.get("k", 3))
+        self.grid = agent_cfg.get("grid", conf.get("grid", 5))
+        self.final_gamma = agent_cfg.get("final_gamma", conf.get("final_gamma", 0.99))
+        self.epsilon_min = agent_cfg.get("epsilon_min", conf.get("epsilon_min", 0.01))
+        self.epsilon_decay = agent_cfg.get("epsilon_decay", conf.get("epsilon_decay", 0.995))
+        learning_rate = agent_cfg.get("learning_rate", conf.get("learning_rate", 0.001))
+        self.update_target_net = agent_cfg.get("update_target_net", conf.get("update_target_net", 10))
+        neuron_list = agent_cfg.get("neurons", conf.get("neurons", [64, 32]))
+        drop_prob = agent_cfg.get("dropout", conf.get("dropout", 0.1))
+        self.with_angles = agent_cfg.get("angles", conf.get("angles", False))
+
+        self.memory_reset_switch = agent_cfg.get("memory_reset_switch", conf.get("memory_reset_switch", False))
+        self.memory_reset_threshold = agent_cfg.get("memory_reset_threshold", conf.get("memory_reset_threshold", 0.0))
+        self.memory_reset_counter = 0
 
         self.action_size = action_size
-
         self.state_size = state_size
-        self.state_size = self.state_size + 1 if conf['agent']['en_state'] else self.state_size
-        self.state_size = self.state_size + 1 if ("threshold_in_state" in conf['agent'].keys() and conf['agent']["threshold_in_state"]) else self.state_size
+        self.state_size = self.state_size + 1 if agent_cfg.get("en_state", conf.get("en_state", False)) else self.state_size
+        self.state_size = (
+            self.state_size + 1
+            if agent_cfg.get("threshold_in_state", conf.get("threshold_in_state", False))
+            else self.state_size
+        )
 
         self.translate = dictionary_of_actions(self.num_qubits)
         self.rev_translate = dict_of_actions_revert_q(self.num_qubits)
-        self.policy_net = self.unpack_network(neuron_list, device)#.to(device)
+        self.policy_net = self._build_kan(neuron_list, device)
         self.target_net = copy.deepcopy(self.policy_net)
         self.target_net.eval()
 
-        self.gamma = torch.Tensor([np.round(np.power(self.final_gamma,1/self.num_layers),2)]).to(device)   # discount rate
-        self.memory = ReplayMemory(memory_size)
-        self.epsilon = 1.0  # exploration rate
-
+        self.gamma = torch.Tensor(
+            [np.round(np.power(self.final_gamma, 1 / self.num_layers), 2)]
+        ).to(device)
+        self.memory = ReplayMemory(self.memory_size)
+        self.epsilon = 1.0
         self.optim = torch.optim.Adam(self.policy_net.parameters(), lr=learning_rate)
-        self.loss = torch.nn.SmoothL1Loss()
+        self.loss_fn = nn.SmoothL1Loss()
         self.device = device
         self.step_counter = 0
+        self.Transition = namedtuple(
+            "Transition", ("state", "action", "reward", "next_state", "done")
+        )
 
-   
-        self.Transition = namedtuple('Transition',
-                            ('state', 'action', 'reward',
-                            'next_state','done'))
+    def _build_kan(self, neuron_list: list[int], device: torch.device) -> nn.Sequential:
+        if not _HAS_PYKAN:
+            return self._build_mlp_fallback(neuron_list)
 
-    def remember(self, state, action, reward, next_state, done):
+        full_width = [self.state_size] + neuron_list + [self.action_size]
+        kan_net = KAN(
+            width=full_width,
+            grid=self.grid,
+            k=self.k,
+            seed=self.kan_seed,
+            device=device,
+        )
+        return nn.Sequential(kan_net)
+
+    def _build_mlp_fallback(self, neuron_list: list[int]) -> nn.Sequential:
+        layer_list: list[nn.Module] = []
+        dims = [self.state_size] + neuron_list
+        for i in range(len(dims) - 1):
+            layer_list.append(nn.Linear(dims[i], dims[i + 1]))
+            layer_list.append(nn.ReLU())
+        layer_list.append(nn.Linear(dims[-1], self.action_size))
+        return nn.Sequential(*layer_list)
+
+    def remember(
+        self,
+        state: torch.Tensor,
+        action: torch.Tensor,
+        reward: torch.Tensor,
+        next_state: torch.Tensor,
+        done: torch.Tensor,
+    ):
         self.memory.push(state, action, reward, next_state, done)
 
-    def act(self, state, ill_action):
+    def act(self, state: torch.Tensor, ill_action: list[int]) -> tuple[int, bool]:
         state = state.unsqueeze(0)
-        epsilon = False
         if torch.rand(1).item() <= self.epsilon:
             rand_ac = torch.randint(self.action_size, (1,)).item()
             while rand_ac in ill_action:
                 rand_ac = torch.randint(self.action_size, (1,)).item()
-            epsilon = True
-            return (rand_ac, epsilon)
+            return rand_ac, True
         act_values = self.policy_net.forward(state)
-        act_values[0][ill_action] = float('-inf')
-        return torch.argmax(act_values[0]).item(), epsilon
+        act_values[0][ill_action] = float("-inf")
+        return torch.argmax(act_values[0]).item(), False
 
-    def replay(self, batch_size):
-        if self.step_counter %self.update_target_net ==0:
+    def replay(self, batch_size: int) -> float:
+        if self.step_counter % self.update_target_net == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
         self.step_counter += 1
-        
         transitions = self.memory.sample(batch_size)
         batch = self.Transition(*zip(*transitions))
         next_state_batch = torch.stack(batch.next_state)
@@ -95,80 +136,77 @@ class KAQN(object):
         action_batch = torch.stack(batch.action)
         reward_batch = torch.stack(batch.reward)
         done_batch = torch.stack(batch.done)
-        
-        """
-        UPDATING THE TARGET AND POLICY NET
-        """
-        if self.step_counter % self.update_target_net ==0:
-            self.target_net.__dict__['_modules']['0'].update_grid_from_samples(state_batch[:len(self.memory)])
-            self.policy_net.__dict__['_modules']['0'].update_grid_from_samples(state_batch[:len(self.memory)])
 
-        state_action_values = self.policy_net.forward(state_batch).gather(1, action_batch.unsqueeze(1))
-        
-        """ Double DQN """        
+        if hasattr(self.policy_net[0], "update_grid_from_samples"):
+            self.target_net[0].update_grid_from_samples(state_batch[: len(self.memory)])
+            self.policy_net[0].update_grid_from_samples(state_batch[: len(self.memory)])
+
+        state_action_values = self.policy_net.forward(state_batch).gather(
+            1, action_batch.unsqueeze(1)
+        )
+
         next_state_values = self.target_net.forward(next_state_batch)
-        next_state_actions = self.policy_net.forward(next_state_batch).max(1)[1].detach()
-        next_state_values = next_state_values.gather(1, next_state_actions.unsqueeze(1)).squeeze(1)
-    
-        """ Compute the expected Q values """
-        expected_state_action_values = (next_state_values * self.gamma) * (1-done_batch) + reward_batch
-        expected_state_action_values = expected_state_action_values.view(-1, 1)
-        
-        assert state_action_values.shape == expected_state_action_values.shape, "Wrong shapes in loss"
-        cost = self.fit(state_action_values, expected_state_action_values)
+        next_state_actions = (
+            self.policy_net.forward(next_state_batch).max(1)[1].detach()
+        )
+        next_state_values = next_state_values.gather(
+            1, next_state_actions.unsqueeze(1)
+        ).squeeze(1)
+
+        expected = (
+            next_state_values * self.gamma
+        ) * (1 - done_batch) + reward_batch
+        expected = expected.view(-1, 1)
+
+        assert (
+            state_action_values.shape == expected.shape
+        ), f"Shape mismatch: {state_action_values.shape} vs {expected.shape}"
+        cost = self._fit(state_action_values, expected)
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
-            self.epsilon = max(self.epsilon,self.epsilon_min)
-        assert self.epsilon >= self.epsilon_min, "Problem with epsilons"
+            self.epsilon = max(self.epsilon, self.epsilon_min)
         return cost
 
-    def fit(self, output, target_f):
+    def _fit(self, output: torch.Tensor, target: torch.Tensor) -> float:
         self.optim.zero_grad()
-        loss = self.loss(output, target_f)
+        loss = self.loss_fn(output, target)
         loss.backward()
         self.optim.step()
         return loss.item()
 
-    """
-    KOLMOGOROV-ARNOLD NEURAL NETWORK
-    """
-    def unpack_network(self, neuron_list, device):
-        neuron_list = [self.state_size] + neuron_list
-        width = [0]*(len(neuron_list)+1)
-        width[0] = neuron_list[0] 
-        width[-1] = self.action_size
-        for no, neuron in enumerate(neuron_list[1:]):
-            width[1+no] = neuron
-        network = KAN(width, grid=self.grid, k=self.k, seed = self.kan_seed, device = device)
-            
-        return nn.Sequential(network)
+    def prune_kan(self, threshold: float = 0.01) -> None:
+        if hasattr(self.policy_net[0], "prune"):
+            self.policy_net[0].prune(threshold=threshold)
+            self.target_net = copy.deepcopy(self.policy_net)
+            self.target_net.eval()
 
-class ReplayMemory(object):
+    def get_kan_splines(self) -> list[Any]:
+        if hasattr(self.policy_net[0], "get_splines"):
+            return self.policy_net[0].get_splines()
+        return []
 
+
+class ReplayMemory:
     def __init__(self, capacity: int):
         self.capacity = capacity
-        self.memory = []
+        self.memory: list[Any] = []
         self.position = 0
-        self.Transition = namedtuple('Transition',
-                                    ('state', 'action', 'reward',
-                                    'next_state','done'))
+        self.Transition = namedtuple(
+            "Transition", ("state", "action", "reward", "next_state", "done")
+        )
 
-    def push(self, *args):
-        """Saves a transition."""
+    def push(self, *args: torch.Tensor):
         if len(self.memory) < self.capacity:
             self.memory.append(None)
         self.memory[self.position] = self.Transition(*args)
         self.position = (self.position + 1) % self.capacity
 
-    def sample(self, batch_size):
+    def sample(self, batch_size: int) -> list[Any]:
         return random.sample(self.memory, batch_size)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.memory)
-    
+
     def clean_memory(self):
         self.memory = []
         self.position = 0
-
-if __name__ == '__main__':
-    pass
