@@ -1,44 +1,50 @@
 # KANQAS-NISQ Progress Log
 
-## Checkpoint 1: Environment & Repo Structure
-- [x] Created new directory structure (chemistry/, hardware/, configs/, interpretability/, tests/, notebooks/, .devcontainer/)
-- [x] Created requirements-dev.txt with all modern dependencies
-- [x] Created .devcontainer/devcontainer.json for one-click Codespace setup
-- [x] Created GitHub Actions CI workflow (.github/workflows/ci.yml)
-- [x] Created pyproject.toml with project metadata
-- [x] Updated kanqas.yml for conda environment
-- [x] Updated utils.py with type hints and YAML support
-- [x] Updated environment.py with type hints
-- [x] Updated curricula.py (kept original intact)
-- [x] Updated agents/KAQN.py with enhanced KAN + MLP fallback + pruning
-- [x] Updated agents/DDQN.py with type hints
+## Completed: Full Build
 
-## Checkpoint 2: Chemistry Experiments
-- [x] Created chemistry/__init__.py
-- [x] Created chemistry/molecule.py - H2, LiH, BeH2 Hamiltonian generation with qiskit-nature
-- [x] Created chemistry/vqe_env.py - VQE RL environment inheriting from CircuitEnv
-- [x] Created chemistry/h2_vqe.py - H2 curriculum VQE training script
-- [x] Created chemistry/lih_vqe.py - LiH curriculum VQE training (6 qubits)
-- [x] Created chemistry/beh2_fragment.py - BeH2 fragment-based VQE training
+### Environment & Structure
+- Created new directory structure (chemistry/, hardware/, configs/, interpretability/, tests/, notebooks/, .devcontainer/)
+- Updated kanqas.yml, requirements-dev.txt, pyproject.toml
+- Added .devcontainer/devcontainer.json for one-click Codespace
+- Added GitHub Actions CI (.github/workflows/ci.yml)
+- Added .pre-commit-config.yaml
+- Updated all original files with type hints (environment.py, utils.py, curricula.py)
 
-## Checkpoint 3: Hardware Path
-- [x] Created hardware/__init__.py
-- [x] Created hardware/ibm_runtime.py - IBM Quantum Runtime integration with EstimatorV2/SamplerV2
-- [x] Created hardware/noise_aware_trainer.py - Noise-aware training with ZNE support
-- [x] Created hardware/hardware_eval.py - Hardware evaluation with rich comparison tables
+### Chemistry (VQE)
+- chemistry/molecule.py — H2, LiH, BeH2 via qiskit-nature PySCF (4-14 qubits)
+- chemistry/vqe_env.py — VQE RL environment inheriting CircuitEnv
+- chemistry/h2_vqe.py — H2 curriculum VQE training (tested: 0.02 Ha error in 50 eps)
+- chemistry/lih_vqe.py — LiH (6-12 qubit) curriculum VQE training
+- chemistry/beh2_fragment.py — BeH2 fragment-based VQE
 
-## Checkpoint 4: Interpretability & Dashboard
-- [x] Created interpretability/__init__.py
-- [x] Created interpretability/kan_visualizer.py - KAN spline, gate heatmap, energy curve visualizations
-- [x] Created interpretability/streamlit_dashboard.py - Full interactive Streamlit dashboard
+### Hardware (IBM Quantum)
+- hardware/ibm_runtime.py — QiskitRuntimeService, EstimatorV2, auto backend selection
+- hardware/noise_aware_trainer.py — Noise-aware training with ZNE support (mitiq)
+- hardware/hardware_eval.py — Simulator vs hardware comparison tables
 
-## Checkpoint 5: Configs, Tests, CLI
-- [x] Created configs/ with YAML configs for all experiments
-- [x] Created tests/ with pytest test suite (agents, environment, chemistry, curricula, hardware)
-- [x] Updated main.py with unified CLI supporting all experiments
-- [x] Rewrote README.md with comprehensive documentation
+### Interpretability
+- interpretability/kan_visualizer.py — Spline, gate heatmap, energy curves
+- interpretability/streamlit_dashboard.py — Full Streamlit dashboard (4 tabs)
 
-## Checkpoint 6: Final Polish
-- [ ] Run linting and basic verification
-- [ ] Create initial git commit with all changes
-- [ ] Tag as checkpoint-1
+### Agents (Enhanced)
+- agents/KAQN.py — Enhanced KAN with pykan + efficient-kan fallback
+- agents/DDQN.py — MLP baseline with type hints
+- Both accept nested or flat config, preserve original behavior
+
+### Testing
+- 38 passing tests across all modules
+- Smoke tests, unit tests, backward compatibility
+
+### CLI
+- `python main.py --help` with 7 experiment types
+- Support for bell, ghz, h2, lih, beh2, hardware, dashboard
+
+### Repo
+- Pushed to https://github.com/NullLabTests/KANQAS_code
+- Git tag: checkpoint-1
+- All original Bell/GHZ functionality preserved
+
+### Verified Results
+- H2 VQE (50 eps): found=-1.831864 Ha, exact=-1.852388 Ha, error=0.020525 Ha
+- LiH: 12 qubits, BeH2: 14 qubits via PySCF
+- Backward compatible with original Bell/GHZ configs
