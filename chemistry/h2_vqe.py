@@ -183,12 +183,20 @@ class H2VQETrainer:
 
     def run(self) -> dict[str, Any]:
         logger.info(f"Running H2 VQE with {self.agent_type} agent over {len(self.bond_lengths)} bond lengths")
+        key_map = {
+            "bond_lengths": "bond_length",
+            "found_energies": "found_energy",
+            "exact_energies": "exact_energy",
+            "gate_counts": None,
+            "depths": None,
+            "cnot_counts": None,
+            "best_circuits": None,
+            "energy_histories": None,
+            "error_histories": None,
+        }
         for bond in self.bond_lengths:
             result = self._train_one_bond(bond)
-            for key in ("bond_lengths", "found_energies", "exact_energies",
-                        "gate_counts", "depths", "cnot_counts", "best_circuits",
-                        "energy_histories", "error_histories"):
-                singular = key.rstrip("s")
+            for key, singular in key_map.items():
                 if key == "gate_counts":
                     val = sum(result.get("gate_counts", {}).values())
                 elif key == "cnot_counts":
