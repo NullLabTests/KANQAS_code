@@ -7,7 +7,9 @@ from typing import Any
 
 import numpy as np
 import torch
+from qiskit import QuantumCircuit
 from rich.logging import RichHandler
+from scipy.optimize import minimize
 
 from agents.DDQN import DDQN
 from agents.KAQN import KAQN
@@ -101,6 +103,67 @@ class H2VQETrainer:
             return KAQN(self.config, env.action_size, env.state_size, self.device)
         return DDQN(self.config, env.action_size, env.state_size, self.device)
 
+    def _convert_to_continuous(self, circuit: QuantumCircuit) -> tuple[QuantumCircuit, list[Any]]:
+        from qiskit.circuit import Parameter
+        params: list[Parameter] = []
+        new_circ = QuantumCircuit(circuit.num_qubits, name=f"{circuit.name}_continuous")
+        for instruction, qargs, cargs in circuit.data:
+            q = qargs[0]
+            if instruction.name == 'x':
+                p = Parameter(f'θ{len(params)}')
+                params.append(p)
+                new_circ.rx(np.pi + p, q)
+            elif instruction.name == 'y':
+                p = Parameter(f'θ{len(params)}')
+                params.append(p)
+                new_circ.ry(np.pi + p, q)
+            elif instruction.name == 'z':
+                p = Parameter(f'θ{len(params)}')
+                params.append(p)
+                new_circ.rz(np.pi + p, q)
+            elif instruction.name == 'h':
+                new_circ.h(q)
+            elif instruction.name == 't':
+                new_circ.t(q)
+            elif instruction.name == 'cx':
+                new_circ.cx(q, qargs[1])
+            else:
+                new_circ.append(instruction, qargs, cargs)
+        return new_circ, params
+
+    def _post_optimize(
+        self, circuit: QuantumCircuit, molecule: MolecularHamiltonian,
+        max_iter: int = 1000,
+    ) -> tuple[float, QuantumCircuit]:
+        try:
+            circ, params = self._convert_to_continuous(circuit)
+        except Exception:
+            logger.warning("Could not convert circuit to continuous, skipping post-optimization")
+            return float('inf'), circuit
+        if not params:
+            return float('inf'), circuit
+
+        x0 = np.zeros(len(params))
+        bounds = [(-np.pi, np.pi)] * len(params)
+        energies: list[float] = []
+
+        def objective(x: np.ndarray) -> float:
+            bound_circ = circ.assign_parameters({p: v for p, v in zip(params, x)})
+            e = molecule.estimate_energy(bound_circ)
+            energies.append(e)
+            return e
+
+        logger.info(f"  Post-optimizing {len(params)} continuous parameters with COBYLA (max {max_iter} iters)...")
+        res = minimize(objective, x0, method='COBYLA', bounds=bounds,
+                       options={'maxiter': max_iter, 'rhobeg': 0.5, 'catol': 1e-6})
+        best_idx = int(np.argmin(energies))
+        x_best = res.x if res.fun <= energies[best_idx] else x0
+
+        bound_circ = circ.assign_parameters({p: v for p, v in zip(params, x_best)})
+        best_e = min(energies)
+        logger.info(f"  Post-optimized energy: {best_e:.6f}")
+        return best_e, bound_circ
+
     def _train_one_bond(self, bond_length: float) -> dict[str, Any]:
         molecule = MolecularHamiltonian.h2(bond_length=bond_length)
         exact_e = molecule.exact_diagonalization()
@@ -166,9 +229,20 @@ class H2VQETrainer:
                 break
 
         circ = best_circuit or env.make_circuit()
+        best_rl_energy = float(best_energy)
+
+        do_optimize = self.config.get("general", {}).get("post_optimize", False)
+        if do_optimize:
+            max_iter = self.config.get("general", {}).get("post_optimize_iter", 1000)
+            opt_energy, opt_circ = self._post_optimize(circ, molecule, max_iter)
+            if opt_energy < best_energy:
+                best_energy = opt_energy
+                circ = opt_circ
+
         gate_counts = circ.count_ops()
         logger.info(
-            f"Bond {bond_length:.2f}A complete | Best E={best_energy:.6f} | "
+            f"Bond {bond_length:.2f}A complete | RL E={best_rl_energy:.6f} | "
+            f"Post-opt E={best_energy:.6f} | "
             f"Exact GS={exact_e:.6f} | Error={abs(best_energy - exact_e):.6f} | "
             f"CX={gate_counts.get('cx', 0)} | Depth={circ.depth()}"
         )
@@ -183,6 +257,7 @@ class H2VQETrainer:
             "energy_history": energy_history,
             "error_history": error_history,
             "best_episode": best_episode,
+            "rl_energy": best_rl_energy,
         }
 
     def run(self) -> dict[str, Any]:

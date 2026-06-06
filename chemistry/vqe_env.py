@@ -28,8 +28,8 @@ class VQEEnv(CircuitEnv):
 
         self.depth_penalty_weight = conf.get("env", {}).get("depth_penalty", 0.01)
         self.gate_penalty_weight = conf.get("env", {}).get("gate_penalty", 0.001)
-        self.gs_energy = molecule.reference_energy
-        self.prev_energy = 0.0
+        self.gs_energy = molecule.exact_diagonalization()
+        self.hf_energy = molecule.reference_energy
 
     def get_cost_func(self, x: torch.Tensor | None = None) -> float:
         circ = self.make_circuit()
@@ -106,7 +106,6 @@ class VQEEnv(CircuitEnv):
         self.prev_cost = self.error
         energy = float(self.get_cost_func())
         self.energy = energy
-        self.prev_energy = energy
         self.error = float(abs(energy - self.gs_energy))
         rwd = self.reward_fn(energy)
         self.save_circ = self.make_circuit()
